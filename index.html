@@ -83,24 +83,13 @@
         let stopDuration = 10; // 10 seconds pause before resuming
         let countdownTimer = null;
 
-        const loginButton = document.getElementById('login-button');
-        const startBtn = document.getElementById('startBtn');
-        const stopBtn = document.getElementById('stopBtn');
-        const statusText = document.getElementById('statusText');
-        const statusIndicator = document.getElementById('statusIndicator');
-        const timeDisplay = document.getElementById('timeDisplay');
-        const minTimeInput = document.getElementById('minTime');
-        const maxTimeInput = document.getElementById('maxTime');
-        const deviceSelect = document.getElementById('device-select');
-        const refreshDevicesBtn = document.getElementById('refreshDevices');
-        const loginPage = document.querySelector('.loginPage');
-        const gamePage = document.querySelector('.gamePage');
-
-        loginButton.addEventListener('click', redirectToSpotifyAuth);
-        startBtn.addEventListener('click', startGame);
-        stopBtn.addEventListener('click', stopGame);
-        deviceSelect.addEventListener('change', () => currentDeviceId = deviceSelect.value);
-        refreshDevicesBtn.addEventListener('click', getDevices);
+        document.getElementById('login-button').addEventListener('click', redirectToSpotifyAuth);
+        document.getElementById('startBtn').addEventListener('click', startGame);
+        document.getElementById('stopBtn').addEventListener('click', stopGame);
+        document.getElementById('refreshDevices').addEventListener('click', getDevices);
+        document.getElementById('device-select').addEventListener('change', function() {
+            currentDeviceId = this.value;
+        });
 
         window.onload = function() {
             const hash = window.location.hash.substring(1);
@@ -109,8 +98,8 @@
                 accessToken = params.get('access_token');
                 if (accessToken) {
                     history.replaceState({}, document.title, window.location.pathname);
-                    loginPage.classList.add('hidden');
-                    gamePage.classList.remove('hidden');
+                    document.querySelector('.loginPage').classList.add('hidden');
+                    document.querySelector('.gamePage').classList.remove('hidden');
                     getDevices();
                 }
             }
@@ -128,7 +117,7 @@
             })
             .then(res => res.json())
             .then(data => {
-                deviceSelect.innerHTML = '';
+                document.getElementById('device-select').innerHTML = '';
                 if (data.devices.length === 0) {
                     alert("No active devices found. Open Spotify and play a song!");
                 } else {
@@ -136,7 +125,7 @@
                         let option = document.createElement('option');
                         option.value = device.id;
                         option.text = device.name + (device.is_active ? ' (Active)' : '');
-                        deviceSelect.appendChild(option);
+                        document.getElementById('device-select').appendChild(option);
                         if (device.is_active) currentDeviceId = device.id;
                     });
                 }
@@ -154,12 +143,13 @@
 
         function stopGame() {
             clearInterval(intervalId);
+            isPlaying = false;
             updateStatus('Game Stopped', 'black');
         }
 
         function scheduleNextToggle() {
-            let minTime = parseInt(minTimeInput.value);
-            let maxTime = parseInt(maxTimeInput.value);
+            let minTime = parseInt(document.getElementById('minTime').value);
+            let maxTime = parseInt(document.getElementById('maxTime').value);
             let time = Math.floor(Math.random() * (maxTime - minTime + 1) + minTime);
             startCountdown(time);
             setTimeout(() => {
@@ -189,9 +179,26 @@
         function startCountdown(time) {
             clearInterval(countdownTimer);
             countdownTimer = setInterval(() => {
-                timeDisplay.textContent = `Next change in ${time} seconds`;
+                document.getElementById('timeDisplay').textContent = `Next change in ${time} seconds`;
                 if (time-- <= 0) clearInterval(countdownTimer);
             }, 1000);
+        }
+
+        function updateStatus(text, color) {
+            document.getElementById('statusText').textContent = text;
+            document.getElementById('statusText').style.color = color;
+        }
+
+        function resumePlayback() {
+            fetch(`https://api.spotify.com/v1/me/player/play?device_id=${currentDeviceId}`, {
+                method: 'PUT', headers: { 'Authorization': 'Bearer ' + accessToken }
+            });
+        }
+
+        function pausePlayback() {
+            fetch('https://api.spotify.com/v1/me/player/pause', {
+                method: 'PUT', headers: { 'Authorization': 'Bearer ' + accessToken }
+            });
         }
     </script>
 </body>
