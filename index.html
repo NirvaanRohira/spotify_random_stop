@@ -149,22 +149,22 @@
             isPlaying = true;
             updateStatus('PLAYING - Keep passing!', 'black');
             resumePlayback();
-            let minTime = parseInt(minTimeInput.value);
-            let maxTime = parseInt(maxTimeInput.value);
-            scheduleNextToggle(minTime, maxTime);
+            scheduleNextToggle();
         }
 
         function stopGame() {
             clearInterval(intervalId);
-            updateStatus('Ready to start', 'black');
+            updateStatus('Game Stopped', 'black');
         }
 
-        function scheduleNextToggle(minTime, maxTime) {
+        function scheduleNextToggle() {
+            let minTime = parseInt(minTimeInput.value);
+            let maxTime = parseInt(maxTimeInput.value);
             let time = Math.floor(Math.random() * (maxTime - minTime + 1) + minTime);
             startCountdown(time);
             setTimeout(() => {
                 togglePlayState();
-                if (isPlaying) scheduleNextToggle(minTime, maxTime);
+                if (isPlaying) scheduleNextToggle();
             }, time * 1000);
         }
 
@@ -177,31 +177,19 @@
                 updateStatus('STOPPED - Open a layer!', 'black');
                 pausePlayback();
                 startCountdown(stopDuration);
-                setTimeout(resumePlayback, stopDuration * 1000);
+                setTimeout(() => {
+                    isPlaying = true;
+                    updateStatus('PLAYING - Keep passing!', 'black');
+                    resumePlayback();
+                    scheduleNextToggle();
+                }, stopDuration * 1000);
             }
-        }
-
-        function resumePlayback() {
-            fetch('https://api.spotify.com/v1/me/player/play?device_id=' + currentDeviceId, {
-                method: 'PUT', headers: { 'Authorization': 'Bearer ' + accessToken }
-            });
-        }
-
-        function pausePlayback() {
-            fetch('https://api.spotify.com/v1/me/player/pause', {
-                method: 'PUT', headers: { 'Authorization': 'Bearer ' + accessToken }
-            });
-        }
-
-        function updateStatus(text, color) {
-            statusText.textContent = text;
-            statusText.style.color = color;
         }
 
         function startCountdown(time) {
             clearInterval(countdownTimer);
             countdownTimer = setInterval(() => {
-                timeDisplay.textContent = `Next stop in ${time} seconds`;
+                timeDisplay.textContent = `Next change in ${time} seconds`;
                 if (time-- <= 0) clearInterval(countdownTimer);
             }, 1000);
         }
