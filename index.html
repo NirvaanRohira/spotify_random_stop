@@ -164,7 +164,7 @@
             gameActive = true;
             isPlaying = true;
             updateStatus('PLAYING - Keep passing!', 'green');
-            resumePlayback();
+            forceDeviceActivation();
             scheduleNextToggle();
         }
 
@@ -191,19 +191,19 @@
             isPlaying = !isPlaying;
             if (isPlaying) {
                 updateStatus('PLAYING - Keep passing!', 'green');
-                resumePlayback();
+                forceDeviceActivation();
             } else {
                 updateStatus('STOPPED - Open a layer!', 'red');
                 pausePlayback();
             }
         }
 
-        function startCountdown(time) {
-            clearInterval(countdownId);
-            countdownId = setInterval(() => {
-                document.getElementById('countdown').textContent = `Next change in ${time} seconds`;
-                if (time-- <= 0) clearInterval(countdownId);
-            }, 1000);
+        function forceDeviceActivation() {
+            fetch('https://api.spotify.com/v1/me/player', {
+                method: 'PUT',
+                headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ device_ids: [currentDeviceId], play: true })
+            }).then(() => resumePlayback());
         }
 
         function updateStatus(text, color) {
