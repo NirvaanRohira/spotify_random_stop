@@ -82,6 +82,7 @@
         let currentDeviceId = null;
         let stopDuration = 10;
         let countdownTimer = null;
+        let currentlyPlayingUri = null;
 
         document.getElementById('login-button').addEventListener('click', redirectToSpotifyAuth);
         document.getElementById('startBtn').addEventListener('click', startGame);
@@ -106,7 +107,7 @@
         };
 
         function redirectToSpotifyAuth() {
-            const scope = 'user-read-playback-state user-modify-playback-state';
+            const scope = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
             const authUrl = `https://accounts.spotify.com/authorize?response_type=token&client_id=${clientId}&scope=${encodeURIComponent(scope)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
             window.location.href = authUrl;
         }
@@ -118,9 +119,9 @@
             .then(res => res.json())
             .then(data => {
                 document.getElementById('device-select').innerHTML = '';
-                if (data.devices.length === 0) {
+                if (data.devices && data.devices.length === 0) {
                     alert("No active devices found. Open Spotify and play a song!");
-                } else {
+                } else if (data.devices) {
                     data.devices.forEach(device => {
                         let option = document.createElement('option');
                         option.value = device.id;
@@ -128,53 +129,142 @@
                         document.getElementById('device-select').appendChild(option);
                         if (device.is_active) currentDeviceId = device.id;
                     });
+                    if (!currentDeviceId && data.devices.length > 0) {
+                        currentDeviceId = data.devices[0].id;
+                        document.getElementById('device-select').value = currentDeviceId;
+                    }
                 }
             })
-            .catch(err => console.error('Error getting devices:', err));
+            .catch(err => {
+                console.error('Error getting devices:', err);
+                alert("Error connecting to Spotify. Please try refreshing the page and reconnecting.");
+            });
+        }
+
+        function startCountdown(seconds) {
+            clearInterval(countdownTimer);
+            const timeDisplay = document.getElementById('timeDisplay');
+            timeDisplay.textContent = `Next change in: ${seconds} seconds`;
+            
+            let remainingTime = seconds - 1;
+            countdownTimer = setInterval(() => {
+                if (remainingTime >= 0) {
+                    timeDisplay.textContent = `Next change in: ${remainingTime} seconds`;
+                    remainingTime--;
+                } else {
+                    clearInterval(countdownTimer);
+                }
+            }, 1000);
+        }
+
+        function togglePlayState() {
+            if (isPlaying) {
+                pausePlayback();
+                updateStatus('STOPPED - Open a layer!', 'red');
+                document.getElementById('statusIndicator').style.backgroundColor = 'red';
+                isPlaying = false;
+            } else {
+                resumePlayback();
+                updateStatus('PLAYING - Keep passing!', 'green');
+                document.getElementById('statusIndicator').style.backgroundColor = 'green';
+                isPlaying = true;
+            }
+        }
+
+        function getCurrentlyPlaying() {
+            return fetch('https://api.spotify.com/v1/me/player/currently-playing', {
+                headers: { 'Authorization': 'Bearer ' + accessToken }
+            })
+            .then(res => {
+                if (res.status === 204) {
+                    return null; // No track currently playing
+                }
+                return res.json();
+            })
+            .then(data => {
+                if (data && data.item) {
+                    currentlyPlayingUri = data.item.uri;
+                    return data;
+                }
+                return null;
+            })
+            .catch(err => {
+                console.error('Error getting currently playing:', err);
+                return null;
+            });
         }
 
         function forceActiveDevice() {
-            fetch('https://api.spotify.com/v1/me/player', {
+            if (!currentDeviceId) {
+                alert("No device selected! Please refresh devices and select one.");
+                return Promise.reject("No device selected");
+            }
+            
+            return fetch('https://api.spotify.com/v1/me/player', {
                 method: 'PUT',
                 headers: {
                     'Authorization': 'Bearer ' + accessToken,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ device_ids: [currentDeviceId], play: false })
-            }).then(() => {
+            })
+            .then(() => {
                 console.log("Forced device activation");
-                resumePlayback();
-            }).catch(err => console.error('Error activating device:', err));
+                return true;
+            })
+            .catch(err => {
+                console.error('Error activating device:', err);
+                return false;
+            });
         }
 
-        function startGame() {
-            if (!accessToken || !currentDeviceId) return alert("Select a device first!");
+        async function startGame() {
+            if (!accessToken || !currentDeviceId) {
+                return alert("Select a device first!");
+            }
+            
+            // First get currently playing track to remember it
+            const currentTrack = await getCurrentlyPlaying();
+            if (!currentTrack || !currentlyPlayingUri) {
+                alert("No track is currently playing on Spotify. Please start a song first!");
+                return;
+            }
+            
+            // Activate the selected device
+            await forceActiveDevice();
+            
             isPlaying = true;
-            updateStatus('PLAYING - Keep passing!', 'black');
-            forceActiveDevice();
+            updateStatus('PLAYING - Keep passing!', 'green');
+            document.getElementById('statusIndicator').style.backgroundColor = 'green';
             scheduleNextToggle();
         }
 
         function stopGame() {
             isPlaying = false;
-            updateStatus('STOPPED - Open a layer!', 'black');
+            clearInterval(countdownTimer);
             pausePlayback();
-            startCountdown(stopDuration);
-            setTimeout(() => {
-                getDevices();
-                forceActiveDevice();
-                scheduleNextToggle();
-            }, stopDuration * 1000);
+            updateStatus('Game Stopped', 'gray');
+            document.getElementById('statusIndicator').style.backgroundColor = 'gray';
+            document.getElementById('timeDisplay').textContent = '';
         }
 
         function scheduleNextToggle() {
             let minTime = parseInt(document.getElementById('minTime').value);
             let maxTime = parseInt(document.getElementById('maxTime').value);
+            
+            // Validate inputs
+            if (minTime <= 0) minTime = 1;
+            if (maxTime <= minTime) maxTime = minTime + 1;
+            
             let time = Math.floor(Math.random() * (maxTime - minTime + 1) + minTime);
             startCountdown(time);
-            setTimeout(() => {
+            
+            clearTimeout(intervalId);
+            intervalId = setTimeout(() => {
                 togglePlayState();
-                if (isPlaying) scheduleNextToggle();
+                if (isPlaying) {
+                    scheduleNextToggle();
+                }
             }, time * 1000);
         }
 
@@ -183,14 +273,45 @@
         }
 
         function resumePlayback() {
-            fetch(`https://api.spotify.com/v1/me/player/play?device_id=${currentDeviceId}`, {
-                method: 'PUT', headers: { 'Authorization': 'Bearer ' + accessToken }
-            });
+            if (!currentDeviceId) {
+                alert("No device selected!");
+                return;
+            }
+            
+            // If we have a URI of a track that was playing, use it
+            if (currentlyPlayingUri) {
+                fetch(`https://api.spotify.com/v1/me/player/play?device_id=${currentDeviceId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': 'Bearer ' + accessToken,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        uris: [currentlyPlayingUri]
+                    })
+                })
+                .catch(err => {
+                    console.error('Error resuming playback:', err);
+                });
+            } else {
+                // Fallback to simple resume
+                fetch(`https://api.spotify.com/v1/me/player/play?device_id=${currentDeviceId}`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': 'Bearer ' + accessToken }
+                })
+                .catch(err => {
+                    console.error('Error resuming playback:', err);
+                });
+            }
         }
 
         function pausePlayback() {
             fetch('https://api.spotify.com/v1/me/player/pause', {
-                method: 'PUT', headers: { 'Authorization': 'Bearer ' + accessToken }
+                method: 'PUT', 
+                headers: { 'Authorization': 'Bearer ' + accessToken }
+            })
+            .catch(err => {
+                console.error('Error pausing playback:', err);
             });
         }
     </script>
