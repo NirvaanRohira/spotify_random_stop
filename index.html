@@ -352,10 +352,12 @@
             if (isPlaying) {
                 updateStatus('PLAYING - Keep passing!', 'green');
                 resumePlayback();
+                scheduleNextToggle(parseInt(minTimeInput.value), parseInt(maxTimeInput.value));
             } else {
                 updateStatus('STOPPED - Open a layer!', 'red');
                 pausePlayback();
             }
+
         }
 
         // Resume playback
