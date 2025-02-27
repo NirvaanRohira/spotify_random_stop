@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -48,7 +48,7 @@
             <div class="mt-6">
                 <label class="block font-bold text-gray-700">Choose Playback Device:</label>
                 <select id="device-select" class="w-full border-gray-300 rounded-md p-2"></select>
-                <button id="refreshDevices" class="mt-2 bg-blue-500 text-white py-2 px-4 rounded-lg w-full">Refresh Devices</button>
+                <button id="refreshDevices" class="mt-2 bg-pink-500 text-white py-2 px-4 rounded-lg w-full">Refresh Devices</button>
             </div>
 
             <div class="mt-6">
@@ -61,7 +61,7 @@
 
             <div class="mt-6 flex gap-2">
                 <button id="startBtn" class="bg-pink-500 text-white py-2 px-4 rounded-lg flex-1">Start Game</button>
-                <button id="stopBtn" class="bg-gray-400 text-white py-2 px-4 rounded-lg flex-1">Stop Game</button>
+                <button id="stopBtn" class="bg-red-500 text-white py-2 px-4 rounded-lg flex-1">Stop Game</button>
             </div>
 
             <div class="status mt-6 text-center">
@@ -81,6 +81,7 @@
         let intervalId = null;
         let currentDeviceId = null;
         let stopDuration = 10; // 10 seconds pause before resuming
+        let countdownTimer = null;
 
         const loginButton = document.getElementById('login-button');
         const startBtn = document.getElementById('startBtn');
@@ -160,7 +161,7 @@
 
         function scheduleNextToggle(minTime, maxTime) {
             let time = Math.floor(Math.random() * (maxTime - minTime + 1) + minTime);
-            updateTimeDisplay(time);
+            startCountdown(time);
             setTimeout(() => {
                 togglePlayState();
                 if (isPlaying) scheduleNextToggle(minTime, maxTime);
@@ -175,6 +176,7 @@
             } else {
                 updateStatus('STOPPED - Open a layer!', 'black');
                 pausePlayback();
+                startCountdown(stopDuration);
                 setTimeout(resumePlayback, stopDuration * 1000);
             }
         }
@@ -196,8 +198,12 @@
             statusText.style.color = color;
         }
 
-        function updateTimeDisplay(time) {
-            timeDisplay.textContent = `Next stop in ${time} seconds`;
+        function startCountdown(time) {
+            clearInterval(countdownTimer);
+            countdownTimer = setInterval(() => {
+                timeDisplay.textContent = `Next stop in ${time} seconds`;
+                if (time-- <= 0) clearInterval(countdownTimer);
+            }, 1000);
         }
     </script>
 </body>
