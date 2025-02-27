@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hen Party Passing Parcel - Spotify Edition</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+            background-color: #f8f8f8;
+        }
+        h1 {
+            color: #e83e8c;
+            margin-bottom: 20px;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        button {
+            background-color: #e83e8c;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            margin: 10px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button.spotify {
+            background-color: #1DB954;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .settings {
+            margin: 20px 0;
+            text-align: left;
+            padding: 0 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .status {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        #statusIndicator {
+            display: inline-block;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background-color: grey;
+            margin-right: 8px;
+        }
+        #timeDisplay {
+            font-size: 14px;
+            margin-top: 10px;
+            color: #666;
+        }
+        .instructions {
+            margin: 25px 0;
+            text-align: left;
+            background-color: #f0f9ff;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #1db954;
+            font-size: 14px;
+        }
+        .instructions h3 {
+            margin-top: 0;
+            color: #1db954;
+        }
+        .instructions ol {
+            padding-left: 20px;
+            margin-bottom: 0;
+        }
+        .spotify-section {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        #nowPlaying {
+            margin-top: 10px;
+            font-style: italic;
+        }
+        .hidden {
+            display: none;
+        }
+        #setup, #game {
+            transition: opacity 0.5s;
+        }
+        .step {
+            margin-bottom: 20px;
+            text-align: left;
+            padding: 15px;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+        }
+        .step-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #e83e8c;
+        }
+        code {
+            background-color: #f0f0f0;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: monospace;
+            user-select: all;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Hen Party Passing the Parcel</h1>
+        
+        <div id="setup">
+            <div class="step">
+                <div class="step-title">Step 1: Create a Spotify Developer App</div>
+                <ol>
+                    <li>Go to <a href="https://developer.spotify.com/dashboard/" target="_blank">Spotify Developer Dashboard</a></li>
+                    <li>Log in with your Spotify account</li>
+                    <li>Click "Create App"</li>
+                    <li>Fill in App name (e.g. "Passing Parcel Game") and description</li>
+                    <li>For "Redirect URI", enter: <code>https://passing-parcel-game.netlify.app/callback</code> or your own hosted URL</li>
+                    <li>Check the agreement box and click "Create"</li>
+                </ol>
+            </div>
+            
+            <div class="step">
+                <div class="step-title">Step 2: Get Your Client ID</div>
+                <ol>
+                    <li>In your new app, click "Settings"</li>
+                    <li>Find and copy the "Client ID"</li>
+                    <li>Paste it below:</li>
+                </ol>
+                <input type="text" id="clientId" placeholder="Enter your Spotify Client ID here">
+                <p>Note: To make this app fully work, you would need to host it on a server with a real redirect URL.</p>
+            </div>
+            
+            <button id="connectSpotify" class="spotify">Connect to Spotify</button>
+        </div>
+        
+        <div id="game" class="hidden">
+            <div class="instructions">
+                <h3>How It Works:</h3>
+                <ol>
+                    <li>Make sure a song is playing on your Spotify account</li>
+                    <li>Set your min and max timings below</li>
+                    <li>Press "Start Game" when ready</li>
+                    <li>The music will automatically play and pause at random intervals</li>
+                    <li>The person holding the parcel when music stops opens a layer!</li>
+                </ol>
+            </div>
+            
+            <div class="spotify-section">
+                <div id="nowPlaying">Not connected to Spotify yet</div>
+                <button id="refreshPlayer" class="spotify">Refresh Player</button>
+            </div>
+            
+            <div class="settings">
+                <label for="minTime">Minimum play time (seconds):</label>
+                <input type="number" id="minTime" value="5" min="1" max="60">
+                
+                <label for="maxTime">Maximum play time (seconds):</label>
+                <input type="number" id="maxTime" value="15" min="1" max="60">
+            </div>
+            
+            <div>
+                <button id="startBtn">Start Game</button>
+                <button id="stopBtn" disabled>Stop Game</button>
+            </div>
+            
+            <div class="status">
+                <span id="statusIndicator"></span>
+                <span id="statusText">Ready to start</span>
+                <div id="timeDisplay"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Spotify Web Player SDK
+        let player;
+        let token;
+        let deviceId;
+        let isAuthorized = false;
+        
+        // Game variables
+        let isPlaying = false;
+        let intervalId = null;
+        let lastChangeTime = 0;
+        let nextChangeTime = 0;
+        
+        // Elements
+        const connectSpotifyBtn = document.getElementById('connectSpotify');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusText = document.getElementById('statusText');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const timeDisplay = document.getElementById('timeDisplay');
+        const minTimeInput = document.getElementById('minTime');
+        const maxTimeInput = document.getElementById('maxTime');
+        const clientIdInput = document.getElementById('clientId');
+        const nowPlaying = document.getElementById('nowPlaying');
+        const refreshPlayerBtn = document.getElementById('refreshPlayer');
+        const setupDiv = document.getElementById('setup');
+        const gameDiv = document.getElementById('game');
+        
+        // Event listeners
+        connectSpotifyBtn.addEventListener('click', initializeSpotify);
+        startBtn.addEventListener('click', startGame);
+        stopBtn.addEventListener('click', stopGame);
+        refreshPlayerBtn.addEventListener('click', getCurrentlyPlaying);
+        
+        // Initialize Spotify
+        function initializeSpotify() {
+            const clientId = clientIdInput.value;
+            if (!clientId) {
+                alert('Please enter your Spotify Client ID');
+                return;
+            }
+            
+            // This would be your actual redirect URI in a real implementation
+            const redirectUri = 'https://passing-parcel-game.netlify.app/callback';
+            
+            // Generate a random state value
+            const state = generateRandomString(16);
+            
+            // Define the required scopes
+            const scope = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
+            
+            // Redirect to Spotify authorization page
+            const authUrl = 'https://accounts.spotify.com/authorize?' +
+                'response_type=token' +
+                '&client_id=' + encodeURIComponent(clientId) +
+                '&scope=' + encodeURIComponent(scope) +
+                '&redirect_uri=' + encodeURIComponent(redirectUri) +
+                '&state=' + encodeURIComponent(state);
+            
+            alert('In a real implementation, this would redirect to Spotify for authorization.\n\nThe redirect URL would be:\n' + authUrl + '\n\nAfter authorization, you would be redirected back with an access token.');
+            
+            // For demo purposes, we'll simulate authorization
+            simulateAuthorization();
+        }
+        
+        // For demo purposes only
+        function simulateAuthorization() {
+            setupDiv.classList.add('hidden');
+            gameDiv.classList.remove('hidden');
+            
+            updateStatus('Connected to Spotify (Simulated)', 'green');
+            nowPlaying.textContent = "Spotify Player Ready (Simulated)";
+            isAuthorized = true;
+        }
+        
+        // Generate random string for state parameter
+        function generateRandomString(length) {
+            let text = '';
+            const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            
+            for (let i = 0; i < length; i++) {
+                text += possible.charAt(Math.floor(Math.random() * possible.length));
+            }
+            return text;
+        }
+        
+        // In a real implementation, this would be called after the redirect
+        function handleCallback() {
+            const hash = window.location.hash.substring(1);
+            const params = new URLSearchParams(hash);
+            token = params.get('access_token');
+            
+            if (token) {
+                isAuthorized = true;
+                initializePlayer(token);
+            }
+        }
+        
+        // Initialize the Spotify Web Playback SDK
+        function initializePlayer(token) {
+            const script = document.createElement('script');
+            script.src = 'https://sdk.scdn.co/spotify-player.js';
+            script.async = true;
+            document.body.appendChild(script);
+            
+            window.onSpotifyWebPlaybackSDKReady = () => {
+                player = new Spotify.Player({
+                    name: 'Passing Parcel Game',
+                    getOAuthToken: cb => { cb(token); }
+                });
+                
+                // Error handling
+                player.addListener('initialization_error', ({ message }) => {
+                    console.error('Initialization error:', message);
+                });
+                
+                player.addListener('authentication_error', ({ message }) => {
+                    console.error('Authentication error:', message);
+                });
+                
+                player.addListener('account_error', ({ message }) => {
+                    console.error('Account error:', message);
+                });
+                
+                player.addListener('playback_error', ({ message }) => {
+                    console.error('Playback error:', message);
+                });
+                
+                // Playback status updates
+                player.addListener('player_state_changed', state => {
+                    if (state) {
+                        updatePlayerInfo(state);
+                    }
+                });
+                
+                // Ready
+                player.addListener('ready', ({ device_id }) => {
+                    console.log('Ready with Device ID', device_id);
+                    deviceId = device_id;
+                    getCurrentlyPlaying();
+                });
+                
+                // Connect to the player
+                player.connect();
+            };
+        }
+        
+        // Update player information
+        function updatePlayerInfo(state) {
+            if (state && state.track_window && state.track_window.current_track) {
+                const track = state.track_window.current_track;
+                nowPlaying.textContent = `Now Playing: ${track.name} by ${track.artists[0].name}`;
+            }
+        }
+        
+        // Get currently playing track info
+        function getCurrentlyPlaying() {
+            if (!isAuthorized) return;
+            
+            // In a real implementation, this would call the Spotify API
+            nowPlaying.textContent = "Currently playing track (simulated)";
+        }
+        
+        // Function to start the game
+        function startGame() {
+            // Validate inputs
+            const minTime = parseInt(minTimeInput.value);
+            const maxTime = parseInt(maxTimeInput.value);
+            
+            if (minTime >= maxTime) {
+                alert('Maximum time must be greater than minimum time');
+                return;
+            }
+            
+            if (!isAuthorized) {
+                alert('Please connect to Spotify first');
+                return;
+            }
+            
+            // Update UI
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            
+            // Start the game with playing state
+            isPlaying = true;
+            updateStatus('PLAYING - Keep passing!', 'green');
+            resumePlayback();
+            
+            // Set up interval to check and change state
+            lastChangeTime = Date.now();
+            nextChangeTime = getRandomInterval(minTime, maxTime);
+            updateTimeDisplay();
+            
+            intervalId = setInterval(() => {
+                const currentTime = Date.now();
+                const elapsedSince = (currentTime - lastChangeTime) / 1000;
+                
+                if (elapsedSince >= nextChangeTime) {
+                    // Toggle playing state
+                    togglePlayState();
+                    
+                    // Reset timer
+                    lastChangeTime = currentTime;
+                    nextChangeTime = getRandomInterval(minTime, maxTime);
+                }
+                
+                updateTimeDisplay();
+            }, 100); // Check every 100ms for smooth countdown
+        }
+        
+        // Function to stop the game
+        function stopGame() {
+            // Clear interval
+            if (intervalId) {
+                clearInterval(intervalId);
+                intervalId = null;
+            }
+            
+            // Update UI
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            updateStatus('Ready to start', 'grey');
+            timeDisplay.textContent = '';
+        }
+        
+        // Function to toggle play/pause state
+        function togglePlayState() {
+            isPlaying = !isPlaying;
+            
+            if (isPlaying) {
+                updateStatus('PLAYING - Keep passing!', 'green');
+                resumePlayback();
+            } else {
+                updateStatus('STOPPED - Open a layer!', 'red');
+                pausePlayback();
+            }
+        }
+        
+        // Resume Spotify playback
+        function resumePlayback() {
+            if (!isAuthorized) return;
+            
+            // In a real implementation, this would call the Spotify API
+            console.log('Resume playback (simulated)');
+            
+            // If using the actual API, it would look something like this:
+            /*
+            fetch('https://api.spotify.com/v1/me/player/play?device_id=' + deviceId, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                }
+            });
+            */
+        }
+        
+        // Pause Spotify playback
+        function pausePlayback() {
+            if (!isAuthorized) return;
+            
+            // In a real implementation, this would call the Spotify API
+            console.log('Pause playback (simulated)');
+            
+            // If using the actual API, it would look something like this:
+            /*
+            fetch('https://api.spotify.com/v1/me/player/pause?device_id=' + deviceId, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': 'Bearer ' + token
+                }
+            });
+            */
+        }
+        
+        // Function to get random interval
+        function getRandomInterval(min, max) {
+            return Math.floor(Math.random() * (max - min + 1) + min);
+        }
+        
+        // Function to update status display
+        function updateStatus(text, color) {
+            statusText.textContent = text;
+            statusIndicator.style.backgroundColor = color;
+        }
+        
+        // Function to update time display
+        function updateTimeDisplay() {
+            if (intervalId) {
+                const currentTime = Date.now();
+                const elapsedSince = (currentTime - lastChangeTime) / 1000;
+                const remaining = Math.max(0, nextChangeTime - elapsedSince).toFixed(1);
+                
+                timeDisplay.textContent = `Next change in approximately ${remaining} seconds`;
+            } else {
+                timeDisplay.textContent = '';
+            }
+        }
+    </script>
+</body>
+</html>
