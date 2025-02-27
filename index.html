@@ -36,8 +36,15 @@
             cursor: pointer;
             transition: background-color 0.3s;
         }
+        button.spotify {
+            background-color: #1DB954;
+        }
         button:hover {
             opacity: 0.9;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
         }
         .status {
             margin-top: 20px;
@@ -57,10 +64,34 @@
             margin-top: 10px;
             color: #666;
         }
+        .hidden {
+            display: none;
+        }
         .timer {
             margin-top: 15px;
             font-size: 18px;
             color: #333;
+        }
+        .settings {
+            background-color: #f1f1f1;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        .settings input {
+            width: 60px;
+            margin: 0 10px;
+        }
+        .debug {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #666;
+            text-align: left;
+            padding: 10px;
+            background-color: #f1f1f1;
+            border-radius: 5px;
+            max-height: 100px;
+            overflow-y: auto;
         }
     </style>
 </head>
@@ -69,22 +100,24 @@
         <h1>Hen Party Passing the Parcel</h1>
 
         <div class="loginPage">
-            <button id="login-button">Connect to Spotify</button>
+            <p>Connect to Spotify to control music for your passing the parcel game</p>
+            <button id="login-button" class="spotify">Connect to Spotify</button>
         </div>
 
         <div class="gamePage hidden">
-            <div>
+            <div class="settings">
                 <h3>Choose Playback Device:</h3>
                 <select id="device-select"></select>
                 <button id="refreshDevices">Refresh Devices</button>
-            </div>
-
-            <div>
-                <label for="minTime">Min Play Time (seconds):</label>
-                <input type="number" id="minTime" value="5" min="1" max="60">
                 
-                <label for="maxTime">Max Play Time (seconds):</label>
-                <input type="number" id="maxTime" value="15" min="1" max="60">
+                <h3>Game Settings:</h3>
+                <div>
+                    <label for="minTime">Min Play Time (seconds):</label>
+                    <input type="number" id="minTime" value="5" min="1" max="60">
+                    
+                    <label for="maxTime">Max Play Time (seconds):</label>
+                    <input type="number" id="maxTime" value="15" min="1" max="60">
+                </div>
             </div>
 
             <button id="startBtn">Start Game</button>
@@ -97,6 +130,7 @@
             </div>
             
             <div class="timer" id="countdown"></div>
+            <div class="debug" id="debugLog"></div>
         </div>
     </div>
 
@@ -106,120 +140,284 @@
         
         let accessToken = null;
         let isPlaying = false;
-        let gameActive = false;
-        let currentDeviceId = null;
         let intervalId = null;
         let countdownId = null;
+        let currentDeviceId = null;
+        let nextActionTime = 0;
+        let gameActive = false;
 
-        document.getElementById('login-button').addEventListener('click', redirectToSpotifyAuth);
-        document.getElementById('startBtn').addEventListener('click', startGame);
-        document.getElementById('stopBtn').addEventListener('click', stopGame);
-        document.getElementById('refreshDevices').addEventListener('click', getDevices);
-        document.getElementById('device-select').addEventListener('change', function() {
-            currentDeviceId = this.value;
-        });
+        const loginButton = document.getElementById('login-button');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusText = document.getElementById('statusText');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const timeDisplay = document.getElementById('timeDisplay');
+        const minTimeInput = document.getElementById('minTime');
+        const maxTimeInput = document.getElementById('maxTime');
+        const deviceSelect = document.getElementById('device-select');
+        const refreshDevicesBtn = document.getElementById('refreshDevices');
+        const loginPage = document.querySelector('.loginPage');
+        const gamePage = document.querySelector('.gamePage');
+        const countdown = document.getElementById('countdown');
+        const debugLog = document.getElementById('debugLog');
 
+        // Add event listeners
+        loginButton.addEventListener('click', redirectToSpotifyAuth);
+        startBtn.addEventListener('click', startGame);
+        stopBtn.addEventListener('click', stopGame);
+        deviceSelect.addEventListener('change', () => currentDeviceId = deviceSelect.value);
+        refreshDevicesBtn.addEventListener('click', getDevices);
+
+        // Log function for debugging
+        function log(message) {
+            const now = new Date();
+            const timestamp = now.toLocaleTimeString();
+            debugLog.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            debugLog.scrollTop = debugLog.scrollHeight;
+        }
+
+        // Check for auth token on page load
         window.onload = function() {
             const hash = window.location.hash.substring(1);
             if (hash) {
                 const params = new URLSearchParams(hash);
                 accessToken = params.get('access_token');
                 if (accessToken) {
+                    log("Access token received");
                     history.replaceState({}, document.title, window.location.pathname);
-                    document.querySelector('.loginPage').classList.add('hidden');
-                    document.querySelector('.gamePage').classList.remove('hidden');
+                    loginPage.classList.add('hidden');
+                    gamePage.classList.remove('hidden');
                     getDevices();
                 }
             }
         };
 
+        // Redirect to Spotify auth
         function redirectToSpotifyAuth() {
             const scope = 'user-read-playback-state user-modify-playback-state';
-            const authUrl = `https://accounts.spotify.com/authorize?response_type=token&client_id=${clientId}&scope=${encodeURIComponent(scope)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+            const authUrl = `https://accounts.spotify.com/authorize?response_type=token&client_id=${clientId}&scope=${encodeURIComponent(scope)}&redirect_uri=${encodeURIComponent(redirectUri)}&show_dialog=true`;
             window.location.href = authUrl;
         }
 
+        // Get available devices
         function getDevices() {
+            log("Fetching devices...");
             fetch('https://api.spotify.com/v1/me/player/devices', {
                 headers: { 'Authorization': 'Bearer ' + accessToken }
             })
-            .then(res => res.json())
+            .then(res => {
+                if (!res.ok) {
+                    throw new Error(`HTTP error! Status: ${res.status}`);
+                }
+                return res.json();
+            })
             .then(data => {
-                document.getElementById('device-select').innerHTML = '';
-                if (data.devices.length > 0) {
+                log(`Found ${data.devices.length} devices`);
+                deviceSelect.innerHTML = '';
+                if (data.devices.length === 0) {
+                    alert("No active devices found. Open Spotify and play a song on at least one device!");
+                } else {
                     data.devices.forEach(device => {
                         let option = document.createElement('option');
                         option.value = device.id;
                         option.text = device.name + (device.is_active ? ' (Active)' : '');
-                        document.getElementById('device-select').appendChild(option);
+                        deviceSelect.appendChild(option);
                         if (device.is_active) currentDeviceId = device.id;
                     });
+                    
+                    // If no device was set as active, use the first one
+                    if (!currentDeviceId && data.devices.length > 0) {
+                        currentDeviceId = data.devices[0].id;
+                        deviceSelect.value = currentDeviceId;
+                    }
                 }
             })
-            .catch(err => console.error('Error getting devices:', err));
+            .catch(err => {
+                log(`Error getting devices: ${err.message}`);
+                console.error('Error getting devices:', err);
+                if (err.message.includes('401')) {
+                    alert("Spotify session expired. Please log in again.");
+                    redirectToSpotifyAuth();
+                }
+            });
         }
 
+        // Start the game
         function startGame() {
-            if (!accessToken || !currentDeviceId) return alert("Select a device first!");
+            if (!accessToken) {
+                alert("Not connected to Spotify. Please log in.");
+                return;
+            }
+            
+            if (!currentDeviceId) {
+                alert("No device selected. Please select a playback device.");
+                return;
+            }
+            
+            // Get timing values
+            let minTime = parseInt(minTimeInput.value);
+            let maxTime = parseInt(maxTimeInput.value);
+            
+            // Validate inputs
+            if (isNaN(minTime) || minTime < 1) minTime = 5;
+            if (isNaN(maxTime) || maxTime < minTime) maxTime = minTime + 10;
+            
+            minTimeInput.value = minTime;
+            maxTimeInput.value = maxTime;
+            
+            log(`Starting game with timing: ${minTime}-${maxTime} seconds`);
+            
+            // Enable/disable buttons
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            
             gameActive = true;
+            
+            // Start with music playing
             isPlaying = true;
             updateStatus('PLAYING - Keep passing!', 'green');
-            forceDeviceActivation();
-            scheduleNextToggle();
+            resumePlayback();
+            
+            // Schedule the first toggle
+            scheduleNextToggle(minTime, maxTime);
         }
 
-        function stopGame() {
-            gameActive = false;
-            updateStatus('Game Stopped', 'black');
-            clearInterval(countdownId);
-            pausePlayback();
-        }
-
-        function scheduleNextToggle() {
+        // Schedule the next toggle action
+        // Schedule the next toggle action
+        function scheduleNextToggle(minTime, maxTime) {
             if (!gameActive) return;
-            let minTime = parseInt(document.getElementById('minTime').value);
-            let maxTime = parseInt(document.getElementById('maxTime').value);
-            let time = Math.floor(Math.random() * (maxTime - minTime + 1) + minTime);
-            startCountdown(time);
-            setTimeout(() => {
+    
+            // Calculate random time
+            const time = Math.floor(Math.random() * (maxTime - minTime + 1) + minTime);
+            log(`Next action scheduled in ${time} seconds`);
+    
+            // Set the next action time
+            nextActionTime = Date.now() + (time * 1000);
+    
+            // Start countdown    
+            updateCountdown();
+
+            // Schedule the toggle
+            clearTimeout(intervalId);
+            intervalId = setTimeout(() => {
                 togglePlayState();
-                if (gameActive) scheduleNextToggle(); 
+                // Always schedule the next toggle, regardless of play state
+                scheduleNextToggle(minTime, maxTime);
             }, time * 1000);
         }
 
+        // Update countdown display
+        function updateCountdown() {
+            clearInterval(countdownId);
+            
+            countdownId = setInterval(() => {
+                if (!gameActive) {
+                    clearInterval(countdownId);
+                    countdown.textContent = '';
+                    return;
+                }
+                
+                const remaining = Math.max(0, Math.ceil((nextActionTime - Date.now()) / 1000));
+                
+                if (isPlaying) {
+                    countdown.textContent = `Music stopping in: ${remaining} seconds`;
+                } else {
+                    countdown.textContent = `Music starting in: ${remaining} seconds`;
+                }
+                
+                if (remaining <= 0) {
+                    clearInterval(countdownId);
+                }
+            }, 1000);
+        }
+
+        // Stop the game
+        function stopGame() {
+            log("Game stopped");
+            gameActive = false;
+            clearTimeout(intervalId);
+            clearInterval(countdownId);
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            countdown.textContent = '';
+            updateStatus('Ready to start', 'grey');
+            pausePlayback();
+        }
+
+        // Toggle the play state
         function togglePlayState() {
             isPlaying = !isPlaying;
+            
             if (isPlaying) {
                 updateStatus('PLAYING - Keep passing!', 'green');
-                forceDeviceActivation();
+                resumePlayback();
             } else {
                 updateStatus('STOPPED - Open a layer!', 'red');
                 pausePlayback();
             }
         }
 
-        function forceDeviceActivation() {
-            fetch('https://api.spotify.com/v1/me/player', {
-                method: 'PUT',
-                headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ device_ids: [currentDeviceId], play: true })
-            }).then(() => resumePlayback());
-        }
-
-        function updateStatus(text, color) {
-            document.getElementById('statusText').textContent = text;
-        }
-
+        // Resume playback
         function resumePlayback() {
+            log("Attempting to resume playback");
             fetch(`https://api.spotify.com/v1/me/player/play?device_id=${currentDeviceId}`, {
-                method: 'PUT', headers: { 'Authorization': 'Bearer ' + accessToken }
+                method: 'PUT', 
+                headers: { 
+                    'Authorization': 'Bearer ' + accessToken,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({})
+            })
+            .then(res => {
+                if (!res.ok) {
+                    if (res.status === 404) {
+                        throw new Error("Device not found. Try refreshing devices.");
+                    }
+                    else if (res.status === 403) {
+                        throw new Error("Premium required for playback control.");
+                    }
+                    else {
+                        throw new Error(`HTTP error ${res.status}`);
+                    }
+                }
+                log("Playback resumed successfully");
+            })
+            .catch(err => {
+                log(`Resume error: ${err.message}`);
+                console.error('Error resuming:', err);
+                alert(`Failed to resume playback: ${err.message}`);
+                stopGame();
             });
         }
 
+        // Pause playback
         function pausePlayback() {
-            fetch('https://api.spotify.com/v1/me/player/pause', {
-                method: 'PUT', headers: { 'Authorization': 'Bearer ' + accessToken }
+            log("Attempting to pause playback");
+            fetch(`https://api.spotify.com/v1/me/player/pause?device_id=${currentDeviceId}`, {
+                method: 'PUT', 
+                headers: { 'Authorization': 'Bearer ' + accessToken }
+            })
+            .then(res => {
+                if (!res.ok) {
+                    if (res.status === 404) {
+                        throw new Error("Device not found. Try refreshing devices.");
+                    } 
+                    else {
+                        throw new Error(`HTTP error ${res.status}`);
+                    }
+                }
+                log("Playback paused successfully");
+            })
+            .catch(err => {
+                log(`Pause error: ${err.message}`);
+                console.error('Error pausing:', err);
             });
+        }
+
+        // Update status display
+        function updateStatus(text, color) {
+            statusText.textContent = text;
+            statusIndicator.style.backgroundColor = color;
         }
     </script>
 </body>
