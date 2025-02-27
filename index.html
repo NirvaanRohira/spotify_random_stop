@@ -5,100 +5,69 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hen Party Passing Parcel - Spotify Controller</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            text-align: center;
-            background-color: #f8f8f8;
+            background-color: #f3f4f6;
             color: #333;
         }
-        h1 {
-            color: #e83e8c;
-            margin-bottom: 20px;
-        }
         .container {
-            background-color: white;
+            max-width: 500px;
+            margin: 40px auto;
+            background: white;
             border-radius: 10px;
             padding: 20px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-        button {
-            background-color: #e83e8c;
-            color: white;
-            border: none;
-            padding: 12px 25px;
-            margin: 10px;
-            font-size: 16px;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-        button.spotify {
-            background-color: #1DB954;
-        }
-        button:hover {
-            opacity: 0.9;
-        }
-        button:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
         }
         .status {
             margin-top: 20px;
-            font-size: 24px;
+            font-size: 22px;
             font-weight: bold;
+            color: black;
         }
-        #statusIndicator {
+        .status-indicator {
             display: inline-block;
-            width: 20px;
-            height: 20px;
+            width: 15px;
+            height: 15px;
             border-radius: 50%;
             background-color: grey;
             margin-right: 8px;
         }
-        #timeDisplay {
-            font-size: 16px;
-            margin-top: 10px;
-            color: #666;
-        }
-        .hidden {
-            display: none;
-        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Hen Party Passing the Parcel</h1>
+    <div class="container shadow-lg p-6 rounded-lg">
+        <h1 class="text-2xl font-bold text-center text-pink-600">Hen Party - Passing the Parcel</h1>
 
-        <div class="loginPage">
-            <button id="login-button" class="spotify">Connect to Spotify</button>
+        <div class="loginPage text-center mt-6">
+            <button id="login-button" class="bg-green-500 text-white font-bold py-2 px-4 rounded-lg w-full">Connect to Spotify</button>
         </div>
 
         <div class="gamePage hidden">
-            <div>
-                <h3>Choose Playback Device:</h3>
-                <select id="device-select"></select>
-                <button id="refreshDevices">Refresh Devices</button>
+            <div class="mt-6">
+                <label class="block font-bold text-gray-700">Choose Playback Device:</label>
+                <select id="device-select" class="w-full border-gray-300 rounded-md p-2"></select>
+                <button id="refreshDevices" class="mt-2 bg-blue-500 text-white py-2 px-4 rounded-lg w-full">Refresh Devices</button>
             </div>
-            
-            <div>
-                <label for="minTime">Min Play Time (seconds):</label>
-                <input type="number" id="minTime" value="5" min="1" max="60">
+
+            <div class="mt-6">
+                <label class="block font-bold text-gray-700">Min Play Time (seconds):</label>
+                <input type="number" id="minTime" value="5" min="1" max="60" class="w-full border rounded-md p-2">
                 
-                <label for="maxTime">Max Play Time (seconds):</label>
-                <input type="number" id="maxTime" value="15" min="1" max="60">
+                <label class="block font-bold text-gray-700 mt-4">Max Play Time (seconds):</label>
+                <input type="number" id="maxTime" value="15" min="1" max="60" class="w-full border rounded-md p-2">
             </div>
 
-            <button id="startBtn">Start Game</button>
-            <button id="stopBtn" disabled>Stop Game</button>
+            <div class="mt-6 flex gap-2">
+                <button id="startBtn" class="bg-pink-500 text-white py-2 px-4 rounded-lg flex-1">Start Game</button>
+                <button id="stopBtn" class="bg-gray-400 text-white py-2 px-4 rounded-lg flex-1">Stop Game</button>
+            </div>
 
-            <div class="status">
-                <span id="statusIndicator"></span>
+            <div class="status mt-6 text-center">
+                <span class="status-indicator" id="statusIndicator"></span>
                 <span id="statusText">Ready to Start</span>
-                <div id="timeDisplay"></div>
+                <div id="timeDisplay" class="text-gray-500 mt-2"></div>
             </div>
         </div>
     </div>
@@ -111,6 +80,7 @@
         let isPlaying = false;
         let intervalId = null;
         let currentDeviceId = null;
+        let stopDuration = 10; // 10 seconds pause before resuming
 
         const loginButton = document.getElementById('login-button');
         const startBtn = document.getElementById('startBtn');
@@ -157,7 +127,6 @@
             })
             .then(res => res.json())
             .then(data => {
-                console.log("Devices:", data.devices);
                 deviceSelect.innerHTML = '';
                 if (data.devices.length === 0) {
                     alert("No active devices found. Open Spotify and play a song!");
@@ -177,29 +146,36 @@
         function startGame() {
             if (!accessToken || !currentDeviceId) return alert("Select a device first!");
             isPlaying = true;
-            updateStatus('PLAYING - Keep passing!', 'green');
+            updateStatus('PLAYING - Keep passing!', 'black');
             resumePlayback();
             let minTime = parseInt(minTimeInput.value);
             let maxTime = parseInt(maxTimeInput.value);
-            intervalId = setInterval(() => {
-                let time = Math.floor(Math.random() * (maxTime - minTime + 1) + minTime);
-                setTimeout(togglePlayState, time * 1000);
-            }, maxTime * 1000);
+            scheduleNextToggle(minTime, maxTime);
         }
 
         function stopGame() {
             clearInterval(intervalId);
-            updateStatus('Ready to start', 'grey');
+            updateStatus('Ready to start', 'black');
+        }
+
+        function scheduleNextToggle(minTime, maxTime) {
+            let time = Math.floor(Math.random() * (maxTime - minTime + 1) + minTime);
+            updateTimeDisplay(time);
+            setTimeout(() => {
+                togglePlayState();
+                if (isPlaying) scheduleNextToggle(minTime, maxTime);
+            }, time * 1000);
         }
 
         function togglePlayState() {
             isPlaying = !isPlaying;
             if (isPlaying) {
-                updateStatus('PLAYING - Keep passing!', 'green');
+                updateStatus('PLAYING - Keep passing!', 'black');
                 resumePlayback();
             } else {
-                updateStatus('STOPPED - Open a layer!', 'red');
+                updateStatus('STOPPED - Open a layer!', 'black');
                 pausePlayback();
+                setTimeout(resumePlayback, stopDuration * 1000);
             }
         }
 
@@ -217,7 +193,11 @@
 
         function updateStatus(text, color) {
             statusText.textContent = text;
-            statusIndicator.style.backgroundColor = color;
+            statusText.style.color = color;
+        }
+
+        function updateTimeDisplay(time) {
+            timeDisplay.textContent = `Next stop in ${time} seconds`;
         }
     </script>
 </body>
