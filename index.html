@@ -243,45 +243,65 @@
         }
 
         // Start the game
-        function startGame() {
-            if (!accessToken) {
-                alert("Not connected to Spotify. Please log in.");
-                return;
-            }
-            
-            if (!currentDeviceId) {
-                alert("No device selected. Please select a playback device.");
-                return;
-            }
-            
-            // Get timing values
-            let minTime = parseInt(minTimeInput.value);
-            let maxTime = parseInt(maxTimeInput.value);
-            
-            // Validate inputs
-            if (isNaN(minTime) || minTime < 1) minTime = 5;
-            if (isNaN(maxTime) || maxTime < minTime) maxTime = minTime + 10;
-            
-            minTimeInput.value = minTime;
-            maxTimeInput.value = maxTime;
-            
-            log(`Starting game with timing: ${minTime}-${maxTime} seconds`);
-            
-            // Enable/disable buttons
-            startBtn.disabled = true;
-            stopBtn.disabled = false;
-            
-            gameActive = true;
-            
-            // Start with music playing
-            isPlaying = true;
-            updateStatus('PLAYING - Keep passing!', 'green');
-            resumePlayback();
-            
-            // Schedule the first toggle
-            scheduleNextToggle(minTime, maxTime);
-        }
 
+        function startGame() {
+    
+            if (!accessToken) {
+        
+                alert("Not connected to Spotify. Please log in.");
+        
+                return;
+    
+            }
+    
+    
+            if (!currentDeviceId) {
+        
+                alert("No device selected. Please select a playback device.");
+        
+                return;
+    
+            }
+    
+    
+            // Validate inputs
+    
+            let minTime = parseInt(minTimeInput.value);
+    
+            let maxTime = parseInt(maxTimeInput.value);
+    
+ 
+            if (isNaN(minTime) || minTime < 1) minTime = 5;
+    
+            if (isNaN(maxTime) || maxTime < minTime) maxTime = minTime + 10;
+    
+    
+            minTimeInput.value = minTime;
+    
+            maxTimeInput.value = maxTime;
+    
+    
+            log(`Starting game with timing: ${minTime}-${maxTime} seconds`);
+    
+    
+            // Enable/disable buttons
+    
+            startBtn.disabled = true;
+    
+            stopBtn.disabled = false;
+    
+    
+            gameActive = true;
+    
+    
+            // Start with music playing
+    
+            isPlaying = false; // Set to false because togglePlayState will flip it to true
+    
+            togglePlayState(); // This will start the music and schedule when to stop it
+
+        }
+        
         // Schedule the next toggle action
         function scheduleNextToggle(minTime, maxTime) {
             if (!gameActive) return;
@@ -348,14 +368,77 @@
         // Toggle the play state
         function togglePlayState() {
             isPlaying = !isPlaying;
-            
+    
+    
             if (isPlaying) {
+        
                 updateStatus('PLAYING - Keep passing!', 'green');
+        
                 resumePlayback();
-                scheduleNextToggle(parseInt(minTimeInput.value), parseInt(maxTimeInput.value));
+        
+                // Schedule when to stop the music
+        
+                let minTime = parseInt(minTimeInput.value);
+        
+                let maxTime = parseInt(maxTimeInput.value);
+        
+                const time = Math.floor(Math.random() * (maxTime - minTime + 1) + minTime);
+        
+                log(`Music will stop in ${time} seconds`);
+        
+        
+                // Clear any existing timers
+        
+                clearTimeout(intervalId);
+        
+ 
+                // Set the next action time for countdown display
+        
+                nextActionTime = Date.now() + (time * 1000);
+        
+                updateCountdown();
+        
+ 
+                // Schedule the next toggle
+        
+                intervalId = setTimeout(togglePlayState, time * 1000);
+    
             } else {
+        
                 updateStatus('STOPPED - Open a layer!', 'red');
+        
                 pausePlayback();
+        
+ 
+                // Schedule when to resume the music
+        
+                let minTime = parseInt(minTimeInput.value);
+        
+                let maxTime = parseInt(maxTimeInput.value);
+        
+                const time = Math.floor(Math.random() * (maxTime - minTime + 1) + minTime);
+        
+                log(`Music will resume in ${time} seconds`);
+
+                
+        
+                // Clear any existing timers
+        
+                clearTimeout(intervalId);
+
+                
+        
+                // Set the next action time for countdown display
+        
+                nextActionTime = Date.now() + (time * 1000);
+        
+                updateCountdown();
+        
+
+                // Schedule the next toggle
+        
+                intervalId = setTimeout(togglePlayState, time * 1000);
+    
             }
 
         }
