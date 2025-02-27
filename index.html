@@ -133,11 +133,25 @@
             .catch(err => console.error('Error getting devices:', err));
         }
 
+        function forceActiveDevice() {
+            fetch('https://api.spotify.com/v1/me/player', {
+                method: 'PUT',
+                headers: {
+                    'Authorization': 'Bearer ' + accessToken,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ device_ids: [currentDeviceId], play: false })
+            }).then(() => {
+                console.log("Forced device activation");
+                resumePlayback();
+            }).catch(err => console.error('Error activating device:', err));
+        }
+
         function startGame() {
             if (!accessToken || !currentDeviceId) return alert("Select a device first!");
             isPlaying = true;
             updateStatus('PLAYING - Keep passing!', 'black');
-            resumePlayback();
+            forceActiveDevice();
             scheduleNextToggle();
         }
 
@@ -148,7 +162,7 @@
             startCountdown(stopDuration);
             setTimeout(() => {
                 getDevices();
-                resumePlayback();
+                forceActiveDevice();
                 scheduleNextToggle();
             }, stopDuration * 1000);
         }
@@ -162,25 +176,6 @@
                 togglePlayState();
                 if (isPlaying) scheduleNextToggle();
             }, time * 1000);
-        }
-
-        function togglePlayState() {
-            isPlaying = !isPlaying;
-            if (isPlaying) {
-                updateStatus('PLAYING - Keep passing!', 'black');
-                resumePlayback();
-            } else {
-                updateStatus('STOPPED - Open a layer!', 'black');
-                stopGame();
-            }
-        }
-
-        function startCountdown(time) {
-            clearInterval(countdownTimer);
-            countdownTimer = setInterval(() => {
-                document.getElementById('timeDisplay').textContent = `Next change in ${time} seconds`;
-                if (time-- <= 0) clearInterval(countdownTimer);
-            }, 1000);
         }
 
         function updateStatus(text, color) {
