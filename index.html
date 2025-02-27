@@ -283,26 +283,27 @@
         }
 
         // Schedule the next toggle action
-        // Schedule the next toggle action
         function scheduleNextToggle(minTime, maxTime) {
             if (!gameActive) return;
-    
+            
             // Calculate random time
             const time = Math.floor(Math.random() * (maxTime - minTime + 1) + minTime);
             log(`Next action scheduled in ${time} seconds`);
-    
+            
             // Set the next action time
             nextActionTime = Date.now() + (time * 1000);
-    
-            // Start countdown    
+            
+            // Start countdown
             updateCountdown();
-
+            
             // Schedule the toggle
             clearTimeout(intervalId);
             intervalId = setTimeout(() => {
                 togglePlayState();
-                // Always schedule the next toggle, regardless of play state
-                scheduleNextToggle(minTime, maxTime);
+                // Only schedule next toggle if we just paused the music
+                if (!isPlaying) {
+                    scheduleNextToggle(minTime, maxTime);
+                }
             }, time * 1000);
         }
 
