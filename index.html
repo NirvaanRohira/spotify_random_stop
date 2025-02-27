@@ -145,6 +145,8 @@
         let currentDeviceId = null;
         let nextActionTime = 0;
         let gameActive = false;
+        let retryCount = 0;
+        let maxRetries = 3;
 
         const loginButton = document.getElementById('login-button');
         const startBtn = document.getElementById('startBtn');
@@ -243,72 +245,61 @@
         }
 
         // Start the game
-
         function startGame() {
-    
             if (!accessToken) {
-        
                 alert("Not connected to Spotify. Please log in.");
-        
                 return;
-    
             }
-    
-    
+            
             if (!currentDeviceId) {
-        
                 alert("No device selected. Please select a playback device.");
-        
                 return;
-    
             }
-    
-    
-            // Validate inputs
-    
+            
+            // Get timing values
             let minTime = parseInt(minTimeInput.value);
-    
             let maxTime = parseInt(maxTimeInput.value);
-    
- 
+            
+            // Validate inputs
             if (isNaN(minTime) || minTime < 1) minTime = 5;
-    
             if (isNaN(maxTime) || maxTime < minTime) maxTime = minTime + 10;
-    
-    
+            
             minTimeInput.value = minTime;
-    
             maxTimeInput.value = maxTime;
-    
-    
+            
             log(`Starting game with timing: ${minTime}-${maxTime} seconds`);
-    
-    
+            
             // Enable/disable buttons
-    
             startBtn.disabled = true;
-    
             stopBtn.disabled = false;
-    
-    
+            
             gameActive = true;
-    
-    
+            retryCount = 0;
+            
             // Start with music playing
-    
             isPlaying = false; // Set to false because togglePlayState will flip it to true
-    
-            togglePlayState(); // This will start the music and schedule when to stop it
-
+            togglePlayState(); // This will start the music and schedule the next toggle
         }
-        
-        // Schedule the next toggle action
-        function scheduleNextToggle(minTime, maxTime) {
+
+        // Schedule the next toggle after a random time
+        function scheduleNextToggle() {
             if (!gameActive) return;
             
             // Calculate random time
+            let minTime = parseInt(minTimeInput.value);
+            let maxTime = parseInt(maxTimeInput.value);
+            
+            // Validate inputs
+            if (isNaN(minTime) || minTime < 1) minTime = 5;
+            if (isNaN(maxTime) || maxTime < minTime) maxTime = minTime + 10;
+            
             const time = Math.floor(Math.random() * (maxTime - minTime + 1) + minTime);
-            log(`Next action scheduled in ${time} seconds`);
+            
+            if (isPlaying) {
+                log(`Music will stop in ${time} seconds`);
+            } else {
+                log(`Music will resume in ${time} seconds`);
+            }
             
             // Set the next action time
             nextActionTime = Date.now() + (time * 1000);
@@ -318,13 +309,7 @@
             
             // Schedule the toggle
             clearTimeout(intervalId);
-            intervalId = setTimeout(() => {
-                togglePlayState();
-                // Only schedule next toggle if we just paused the music
-                if (!isPlaying) {
-                    scheduleNextToggle(minTime, maxTime);
-                }
-            }, time * 1000);
+            intervalId = setTimeout(togglePlayState, time * 1000);
         }
 
         // Update countdown display
@@ -367,80 +352,20 @@
 
         // Toggle the play state
         function togglePlayState() {
+            if (!gameActive) return;
+            
             isPlaying = !isPlaying;
-    
-    
+            
             if (isPlaying) {
-        
                 updateStatus('PLAYING - Keep passing!', 'green');
-        
                 resumePlayback();
-        
-                // Schedule when to stop the music
-        
-                let minTime = parseInt(minTimeInput.value);
-        
-                let maxTime = parseInt(maxTimeInput.value);
-        
-                const time = Math.floor(Math.random() * (maxTime - minTime + 1) + minTime);
-        
-                log(`Music will stop in ${time} seconds`);
-        
-        
-                // Clear any existing timers
-        
-                clearTimeout(intervalId);
-        
- 
-                // Set the next action time for countdown display
-        
-                nextActionTime = Date.now() + (time * 1000);
-        
-                updateCountdown();
-        
- 
-                // Schedule the next toggle
-        
-                intervalId = setTimeout(togglePlayState, time * 1000);
-    
             } else {
-        
                 updateStatus('STOPPED - Open a layer!', 'red');
-        
                 pausePlayback();
-        
- 
-                // Schedule when to resume the music
-        
-                let minTime = parseInt(minTimeInput.value);
-        
-                let maxTime = parseInt(maxTimeInput.value);
-        
-                const time = Math.floor(Math.random() * (maxTime - minTime + 1) + minTime);
-        
-                log(`Music will resume in ${time} seconds`);
-
-                
-        
-                // Clear any existing timers
-        
-                clearTimeout(intervalId);
-
-                
-        
-                // Set the next action time for countdown display
-        
-                nextActionTime = Date.now() + (time * 1000);
-        
-                updateCountdown();
-        
-
-                // Schedule the next toggle
-        
-                intervalId = setTimeout(togglePlayState, time * 1000);
-    
             }
-
+            
+            // Always schedule the next toggle regardless of play state
+            scheduleNextToggle();
         }
 
         // Resume playback
@@ -467,12 +392,28 @@
                     }
                 }
                 log("Playback resumed successfully");
+                retryCount = 0; // Reset retry count on success
             })
             .catch(err => {
                 log(`Resume error: ${err.message}`);
                 console.error('Error resuming:', err);
-                alert(`Failed to resume playback: ${err.message}`);
-                stopGame();
+                
+                // Handle errors gracefully
+                if (retryCount < maxRetries) {
+                    retryCount++;
+                    log(`Retry attempt ${retryCount}/${maxRetries}...`);
+                    
+                    // Try refreshing devices if device not found
+                    if (err.message.includes("Device not found")) {
+                        getDevices();
+                    }
+                    
+                    // Continue with the game even if there was an error
+                    // The next toggle is already scheduled
+                } else {
+                    alert(`Failed to resume playback after multiple attempts: ${err.message}`);
+                    stopGame();
+                }
             });
         }
 
@@ -493,10 +434,17 @@
                     }
                 }
                 log("Playback paused successfully");
+                retryCount = 0; // Reset retry count on success
             })
             .catch(err => {
                 log(`Pause error: ${err.message}`);
                 console.error('Error pausing:', err);
+                
+                // For pause errors, we're more tolerant - just log and continue
+                // The game will continue with the next scheduled toggle
+                if (err.message.includes("Device not found")) {
+                    getDevices();
+                }
             });
         }
 
