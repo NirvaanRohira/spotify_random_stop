@@ -5,85 +5,100 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hen Party Passing Parcel - Spotify Controller</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #f3f4f6;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+            background-color: #f8f8f8;
             color: #333;
         }
+        h1 {
+            color: #e83e8c;
+            margin-bottom: 20px;
+        }
         .container {
-            max-width: 500px;
-            margin: 40px auto;
-            background: white;
+            background-color: white;
             border-radius: 10px;
             padding: 20px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        button {
+            background-color: #e83e8c;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            margin: 10px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button.spotify {
+            background-color: #1DB954;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
         }
         .status {
             margin-top: 20px;
-            font-size: 22px;
+            font-size: 24px;
             font-weight: bold;
-            color: black;
         }
-        .status-indicator {
+        #statusIndicator {
             display: inline-block;
-            width: 15px;
-            height: 15px;
+            width: 20px;
+            height: 20px;
             border-radius: 50%;
             background-color: grey;
             margin-right: 8px;
         }
-        .note {
+        #timeDisplay {
+            font-size: 16px;
             margin-top: 10px;
-            font-size: 14px;
             color: #666;
-            font-style: italic;
+        }
+        .hidden {
+            display: none;
         }
     </style>
 </head>
 <body>
-    <div class="container shadow-lg p-6 rounded-lg">
-        <h1 class="text-2xl font-bold text-center text-pink-600">Hen Party - Passing the Parcel</h1>
+    <div class="container">
+        <h1>Hen Party Passing the Parcel</h1>
 
-        <div class="loginPage text-center mt-6">
-            <button id="login-button" class="bg-green-500 text-white font-bold py-2 px-4 rounded-lg w-full">Connect to Spotify</button>
+        <div class="loginPage">
+            <button id="login-button" class="spotify">Connect to Spotify</button>
         </div>
 
         <div class="gamePage hidden">
-            <div class="mt-6">
-                <label class="block font-bold text-gray-700">Choose Spotify Device:</label>
-                <select id="device-select" class="w-full border-gray-300 rounded-md p-2"></select>
-                <button id="refreshDevices" class="mt-2 bg-pink-500 text-white py-2 px-4 rounded-lg w-full">Refresh Devices</button>
-                <div class="note">Don't see your device? Open Spotify on any device and it will appear here after refresh.</div>
+            <div>
+                <h3>Choose Playback Device:</h3>
+                <select id="device-select"></select>
+                <button id="refreshDevices">Refresh Devices</button>
             </div>
-
-            <div class="mt-4">
-                <label class="block font-bold text-gray-700">Select Playlist Mode:</label>
-                <div class="flex gap-2 mt-2">
-                    <button id="useCurrentSong" class="bg-blue-500 text-white py-2 px-4 rounded-lg flex-1">Use Current Song</button>
-                    <button id="useRecommended" class="bg-blue-500 text-white py-2 px-4 rounded-lg flex-1">Party Mix</button>
-                </div>
-                <div id="playingTrack" class="mt-2 text-gray-700 text-sm"></div>
-            </div>
-
-            <div class="mt-6">
-                <label class="block font-bold text-gray-700">Min Play Time (seconds):</label>
-                <input type="number" id="minTime" value="5" min="1" max="60" class="w-full border rounded-md p-2">
+            
+            <div>
+                <label for="minTime">Min Play Time (seconds):</label>
+                <input type="number" id="minTime" value="5" min="1" max="60">
                 
-                <label class="block font-bold text-gray-700 mt-4">Max Play Time (seconds):</label>
-                <input type="number" id="maxTime" value="15" min="1" max="60" class="w-full border rounded-md p-2">
+                <label for="maxTime">Max Play Time (seconds):</label>
+                <input type="number" id="maxTime" value="15" min="1" max="60">
             </div>
 
-            <div class="mt-6 flex gap-2">
-                <button id="startBtn" class="bg-pink-500 text-white py-2 px-4 rounded-lg flex-1">Start Game</button>
-                <button id="stopBtn" class="bg-red-500 text-white py-2 px-4 rounded-lg flex-1" disabled>Stop Game</button>
-            </div>
+            <button id="startBtn">Start Game</button>
+            <button id="stopBtn" disabled>Stop Game</button>
 
-            <div class="status mt-6 text-center">
-                <span class="status-indicator" id="statusIndicator"></span>
+            <div class="status">
+                <span id="statusIndicator"></span>
                 <span id="statusText">Ready to Start</span>
-                <div id="timeDisplay" class="text-gray-500 mt-2"></div>
+                <div id="timeDisplay"></div>
             </div>
         </div>
     </div>
@@ -94,24 +109,27 @@
         
         let accessToken = null;
         let isPlaying = false;
-        let playTimer = null;
+        let intervalId = null;
         let currentDeviceId = null;
-        let countdownTimer = null;
-        let playlistUris = [];
-        let currentTrackInfo = null;
-        let gameMode = 'current'; // 'current' or 'playlist'
 
-        // Event Listeners
-        document.getElementById('login-button').addEventListener('click', redirectToSpotifyAuth);
-        document.getElementById('startBtn').addEventListener('click', startGame);
-        document.getElementById('stopBtn').addEventListener('click', stopGame);
-        document.getElementById('refreshDevices').addEventListener('click', getDevices);
-        document.getElementById('useCurrentSong').addEventListener('click', () => setGameMode('current'));
-        document.getElementById('useRecommended').addEventListener('click', () => setGameMode('playlist'));
-        
-        document.getElementById('device-select').addEventListener('change', function() {
-            currentDeviceId = this.value;
-        });
+        const loginButton = document.getElementById('login-button');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusText = document.getElementById('statusText');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const timeDisplay = document.getElementById('timeDisplay');
+        const minTimeInput = document.getElementById('minTime');
+        const maxTimeInput = document.getElementById('maxTime');
+        const deviceSelect = document.getElementById('device-select');
+        const refreshDevicesBtn = document.getElementById('refreshDevices');
+        const loginPage = document.querySelector('.loginPage');
+        const gamePage = document.querySelector('.gamePage');
+
+        loginButton.addEventListener('click', redirectToSpotifyAuth);
+        startBtn.addEventListener('click', startGame);
+        stopBtn.addEventListener('click', stopGame);
+        deviceSelect.addEventListener('change', () => currentDeviceId = deviceSelect.value);
+        refreshDevicesBtn.addEventListener('click', getDevices);
 
         window.onload = function() {
             const hash = window.location.hash.substring(1);
@@ -120,49 +138,17 @@
                 accessToken = params.get('access_token');
                 if (accessToken) {
                     history.replaceState({}, document.title, window.location.pathname);
-                    document.querySelector('.loginPage').classList.add('hidden');
-                    document.querySelector('.gamePage').classList.remove('hidden');
+                    loginPage.classList.add('hidden');
+                    gamePage.classList.remove('hidden');
                     getDevices();
-                    getCurrentlyPlaying();
                 }
             }
         };
 
         function redirectToSpotifyAuth() {
-            const scope = 'user-read-playback-state user-modify-playback-state user-read-currently-playing streaming';
+            const scope = 'user-read-playback-state user-modify-playback-state';
             const authUrl = `https://accounts.spotify.com/authorize?response_type=token&client_id=${clientId}&scope=${encodeURIComponent(scope)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
             window.location.href = authUrl;
-        }
-
-        function setGameMode(mode) {
-            gameMode = mode;
-            if (mode === 'current') {
-                document.getElementById('useCurrentSong').classList.replace('bg-blue-500', 'bg-green-600');
-                document.getElementById('useRecommended').classList.replace('bg-green-600', 'bg-blue-500');
-                getCurrentlyPlaying();
-            } else {
-                document.getElementById('useRecommended').classList.replace('bg-blue-500', 'bg-green-600');
-                document.getElementById('useCurrentSong').classList.replace('bg-green-600', 'bg-blue-500');
-                getPartyPlaylist();
-            }
-        }
-
-        function getPartyPlaylist() {
-            // Party mix - upbeat song URIs
-            playlistUris = [
-                'spotify:track:4Io5vWtmV1rFj4ASTfzmCR', // "I Wanna Dance with Somebody" - Whitney Houston
-                'spotify:track:0GjEhVFGZW8afUYGChu3Rr', // "Dancing Queen" - ABBA
-                'spotify:track:7GhIk7Il098yCjg4BQjzvb', // "Never Gonna Give You Up" - Rick Astley
-                'spotify:track:4kbj5MwxO1bq9wjT5g9HaA', // "Girls Just Want to Have Fun" - Cyndi Lauper
-                'spotify:track:6Z8R6UsFuGXGtiIxiD8ISb', // "It's Raining Men" - The Weather Girls
-                'spotify:track:3MrRksHupTVEQ7YbA0FsZK', // "YMCA" - Village People
-                'spotify:track:4pbG9SUmWIvsROVLF0zF9s', // "I Will Survive" - Gloria Gaynor
-                'spotify:track:6V9fHiv84WlVTg7CSnIVY2', // "Wannabe" - Spice Girls
-                'spotify:track:2tUBqZG2AbRi7Q0BIrVrEj', // "I'm So Excited" - The Pointer Sisters
-                'spotify:track:4w1lzcaoZ1IC2K5TwjalRP'  // "Shake It Off" - Taylor Swift
-            ];
-            
-            document.getElementById('playingTrack').textContent = 'Party Mix: 10 upbeat songs for your hen party!';
         }
 
         function getDevices() {
@@ -171,253 +157,67 @@
             })
             .then(res => res.json())
             .then(data => {
-                const select = document.getElementById('device-select');
-                select.innerHTML = '';
-                
-                if (!data.devices || data.devices.length === 0) {
-                    select.innerHTML = '<option value="">No devices found</option>';
-                    alert("No Spotify devices found. Please open Spotify on any device and try refreshing.");
+                console.log("Devices:", data.devices);
+                deviceSelect.innerHTML = '';
+                if (data.devices.length === 0) {
+                    alert("No active devices found. Open Spotify and play a song!");
                 } else {
                     data.devices.forEach(device => {
                         let option = document.createElement('option');
                         option.value = device.id;
                         option.text = device.name + (device.is_active ? ' (Active)' : '');
-                        select.appendChild(option);
-                        
-                        // Select active device by default
-                        if (device.is_active) {
-                            currentDeviceId = device.id;
-                            select.value = device.id;
-                        }
+                        deviceSelect.appendChild(option);
+                        if (device.is_active) currentDeviceId = device.id;
                     });
-                    
-                    // If no active device was found, select the first one
-                    if (!currentDeviceId && data.devices.length > 0) {
-                        currentDeviceId = data.devices[0].id;
-                        select.value = data.devices[0].id;
-                    }
                 }
             })
-            .catch(err => {
-                console.error('Error getting devices:', err);
-                alert("Error fetching Spotify devices. Please reconnect to Spotify.");
-            });
-        }
-
-        function getCurrentlyPlaying() {
-            fetch('https://api.spotify.com/v1/me/player/currently-playing', {
-                headers: { 'Authorization': 'Bearer ' + accessToken }
-            })
-            .then(res => {
-                if (res.status === 204) return null; // No track playing
-                return res.json();
-            })
-            .then(data => {
-                if (data && data.item) {
-                    currentTrackInfo = {
-                        uri: data.item.uri,
-                        name: data.item.name,
-                        artist: data.item.artists[0].name
-                    };
-                    document.getElementById('playingTrack').textContent = 
-                        `Current Track: ${currentTrackInfo.name} - ${currentTrackInfo.artist}`;
-                } else {
-                    document.getElementById('playingTrack').textContent = 
-                        'No track currently playing. Please play a song in Spotify first.';
-                }
-            })
-            .catch(err => {
-                console.error('Error getting current track:', err);
-            });
-        }
-
-        function startCountdown(seconds) {
-            clearInterval(countdownTimer);
-            const timeDisplay = document.getElementById('timeDisplay');
-            timeDisplay.textContent = `Next change in: ${seconds} seconds`;
-            
-            let remainingTime = seconds - 1;
-            countdownTimer = setInterval(() => {
-                if (remainingTime >= 0) {
-                    timeDisplay.textContent = `Next change in: ${remainingTime} seconds`;
-                    remainingTime--;
-                } else {
-                    clearInterval(countdownTimer);
-                }
-            }, 1000);
-        }
-
-        function togglePlayState() {
-            if (isPlaying) {
-                pausePlayback();
-                updateStatus('STOPPED - Open a layer!', 'red');
-                document.getElementById('statusIndicator').style.backgroundColor = 'red';
-                isPlaying = false;
-            } else {
-                resumePlayback();
-                updateStatus('PLAYING - Keep passing!', 'green');
-                document.getElementById('statusIndicator').style.backgroundColor = 'green';
-                isPlaying = true;
-            }
+            .catch(err => console.error('Error getting devices:', err));
         }
 
         function startGame() {
-            if (!accessToken || !currentDeviceId) {
-                return alert("Please select a Spotify device first!");
-            }
-            
-            if (gameMode === 'current' && (!currentTrackInfo || !currentTrackInfo.uri)) {
-                return alert("No track is currently playing. Please play a song in Spotify first or select Party Mix mode!");
-            }
-            
-            // Disable start button and enable stop button
-            document.getElementById('startBtn').disabled = true;
-            document.getElementById('stopBtn').disabled = false;
-            
-            // If using playlist mode, start with the first song
-            if (gameMode === 'playlist' && playlistUris.length > 0) {
-                playTrack(playlistUris[0]);
-            } else {
-                // Transfer playback to selected device
-                transferPlayback()
-                    .then(() => {
-                        isPlaying = true;
-                        updateStatus('PLAYING - Keep passing!', 'green');
-                        document.getElementById('statusIndicator').style.backgroundColor = 'green';
-                        scheduleNextToggle();
-                    })
-                    .catch(err => {
-                        console.error('Error starting game:', err);
-                        alert("Error starting game. Please check your Spotify connection.");
-                        resetGameState();
-                    });
-            }
-        }
-        
-        function transferPlayback() {
-            return fetch('https://api.spotify.com/v1/me/player', {
-                method: 'PUT',
-                headers: {
-                    'Authorization': 'Bearer ' + accessToken,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ 
-                    device_ids: [currentDeviceId],
-                    play: true
-                })
-            });
-        }
-        
-        function playTrack(trackUri) {
-            fetch(`https://api.spotify.com/v1/me/player/play?device_id=${currentDeviceId}`, {
-                method: 'PUT',
-                headers: {
-                    'Authorization': 'Bearer ' + accessToken,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    uris: [trackUri]
-                })
-            })
-            .then(() => {
-                isPlaying = true;
-                updateStatus('PLAYING - Keep passing!', 'green');
-                document.getElementById('statusIndicator').style.backgroundColor = 'green';
-                scheduleNextToggle();
-            })
-            .catch(err => {
-                console.error('Error playing track:', err);
-                alert("Error playing track. Please check your Spotify connection.");
-                resetGameState();
-            });
+            if (!accessToken || !currentDeviceId) return alert("Select a device first!");
+            isPlaying = true;
+            updateStatus('PLAYING - Keep passing!', 'green');
+            resumePlayback();
+            let minTime = parseInt(minTimeInput.value);
+            let maxTime = parseInt(maxTimeInput.value);
+            intervalId = setInterval(() => {
+                let time = Math.floor(Math.random() * (maxTime - minTime + 1) + minTime);
+                setTimeout(togglePlayState, time * 1000);
+            }, maxTime * 1000);
         }
 
         function stopGame() {
-            resetGameState();
-            pausePlayback();
-        }
-        
-        function resetGameState() {
-            isPlaying = false;
-            clearTimeout(playTimer);
-            clearInterval(countdownTimer);
-            updateStatus('Game Stopped', 'gray');
-            document.getElementById('statusIndicator').style.backgroundColor = 'gray';
-            document.getElementById('timeDisplay').textContent = '';
-            document.getElementById('startBtn').disabled = false;
-            document.getElementById('stopBtn').disabled = true;
+            clearInterval(intervalId);
+            updateStatus('Ready to start', 'grey');
         }
 
-        function scheduleNextToggle() {
-            let minTime = parseInt(document.getElementById('minTime').value) || 5;
-            let maxTime = parseInt(document.getElementById('maxTime').value) || 15;
-            
-            // Validate inputs
-            if (minTime < 1) minTime = 1;
-            if (maxTime <= minTime) maxTime = minTime + 1;
-            if (maxTime > 60) maxTime = 60;
-            
-            let time = Math.floor(Math.random() * (maxTime - minTime + 1) + minTime);
-            startCountdown(time);
-            
-            clearTimeout(playTimer);
-            playTimer = setTimeout(() => {
-                togglePlayState();
-                
-                // If we're still playing, schedule the next toggle
-                if (isPlaying) {
-                    scheduleNextToggle();
-                }
-            }, time * 1000);
-        }
-
-        function updateStatus(text, color) {
-            document.getElementById('statusText').textContent = text;
+        function togglePlayState() {
+            isPlaying = !isPlaying;
+            if (isPlaying) {
+                updateStatus('PLAYING - Keep passing!', 'green');
+                resumePlayback();
+            } else {
+                updateStatus('STOPPED - Open a layer!', 'red');
+                pausePlayback();
+            }
         }
 
         function resumePlayback() {
-            if (gameMode === 'current' && currentTrackInfo) {
-                // Resume current track
-                fetch(`https://api.spotify.com/v1/me/player/play?device_id=${currentDeviceId}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': 'Bearer ' + accessToken,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        uris: [currentTrackInfo.uri]
-                    })
-                })
-                .catch(err => {
-                    console.error('Error resuming playback:', err);
-                });
-            } else if (gameMode === 'playlist') {
-                // Get random track from playlist
-                const randomIndex = Math.floor(Math.random() * playlistUris.length);
-                fetch(`https://api.spotify.com/v1/me/player/play?device_id=${currentDeviceId}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': 'Bearer ' + accessToken,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        uris: [playlistUris[randomIndex]]
-                    })
-                })
-                .catch(err => {
-                    console.error('Error playing track from playlist:', err);
-                });
-            }
+            fetch('https://api.spotify.com/v1/me/player/play?device_id=' + currentDeviceId, {
+                method: 'PUT', headers: { 'Authorization': 'Bearer ' + accessToken }
+            });
         }
 
         function pausePlayback() {
             fetch('https://api.spotify.com/v1/me/player/pause', {
-                method: 'PUT', 
-                headers: { 'Authorization': 'Bearer ' + accessToken }
-            })
-            .catch(err => {
-                console.error('Error pausing playback:', err);
+                method: 'PUT', headers: { 'Authorization': 'Bearer ' + accessToken }
             });
+        }
+
+        function updateStatus(text, color) {
+            statusText.textContent = text;
+            statusIndicator.style.backgroundColor = color;
         }
     </script>
 </body>
