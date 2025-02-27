@@ -80,7 +80,7 @@
         let isPlaying = false;
         let intervalId = null;
         let currentDeviceId = null;
-        let stopDuration = 10; // 10 seconds pause before resuming
+        let stopDuration = 10;
         let countdownTimer = null;
 
         document.getElementById('login-button').addEventListener('click', redirectToSpotifyAuth);
@@ -142,9 +142,15 @@
         }
 
         function stopGame() {
-            clearInterval(intervalId);
             isPlaying = false;
-            updateStatus('Game Stopped', 'black');
+            updateStatus('STOPPED - Open a layer!', 'black');
+            pausePlayback();
+            startCountdown(stopDuration);
+            setTimeout(() => {
+                getDevices();
+                resumePlayback();
+                scheduleNextToggle();
+            }, stopDuration * 1000);
         }
 
         function scheduleNextToggle() {
@@ -165,14 +171,7 @@
                 resumePlayback();
             } else {
                 updateStatus('STOPPED - Open a layer!', 'black');
-                pausePlayback();
-                startCountdown(stopDuration);
-                setTimeout(() => {
-                    isPlaying = true;
-                    updateStatus('PLAYING - Keep passing!', 'black');
-                    resumePlayback();
-                    scheduleNextToggle();
-                }, stopDuration * 1000);
+                stopGame();
             }
         }
 
@@ -186,7 +185,6 @@
 
         function updateStatus(text, color) {
             document.getElementById('statusText').textContent = text;
-            document.getElementById('statusText').style.color = color;
         }
 
         function resumePlayback() {
